@@ -1,6 +1,4 @@
-FROM debian:latest
-
-# Atualiza pacotes e instala ferramentas essenciais
+# Atualiza os pacotes e instala ferramentas essenciais
 RUN apt-get update && apt-get install -y \
     sudo \
     bash \
@@ -30,12 +28,7 @@ RUN apt-get update && apt-get install -y \
     libsqlite3-dev \
     zlib1g-dev \
     tzdata \
-    fuse \
-    bash-completion \
-    tmux \
-    zsh \
-    software-properties-common \
-    iputils-ping
+    fuse
 
 # Instala Neovim v0.11.0 via AppImage
 RUN curl -LO https://github.com/neovim/neovim/releases/download/v0.11.0/nvim-linux-x86_64.appimage && \
@@ -45,26 +38,20 @@ RUN curl -LO https://github.com/neovim/neovim/releases/download/v0.11.0/nvim-lin
     ln -s /nvim/AppRun /usr/local/bin/nvim && \
     rm nvim-linux-x86_64.appimage
 
-# Cria o usuário 'devuser'
-RUN useradd -m -s /bin/zsh -G sudo devuser && echo 'devuser ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/devuser
+# Instalação do LunarVim como root para evitar problemas com permissões
+RUN bash -c "$(curl -s https://raw.githubusercontent.com/LunarVim/LunarVim/master/utils/installer/install.sh)" -- --yes
+
+# Cria o usuário 'devuser' com diretório home e permissões sudo
+RUN useradd -m -s /bin/bash -G sudo devuser && \
+    echo 'devuser ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/devuser
 
 # Troca para o usuário devuser
 USER devuser
-WORKDIR /home/devuser
 
-# Instala o Oh My Zsh
-RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
-
-# Instalação do LunarVim
-RUN bash -c "$(curl -s https://raw.githubusercontent.com/LunarVim/LunarVim/master/utils/installer/install.sh)" -- --yes
-
-# Adiciona binários locais ao PATH
+# Exporta o PATH do LunarVim para o usuário
 ENV PATH="/home/devuser/.local/bin:$PATH"
 
-# Cria diretórios úteis
-RUN mkdir -p ~/projects ~/scripts ~/.config/lvim
-
-# Instala pacotes Python geoespaciais/científicos
+# Instala os pacotes Python geoespaciais/científicos
 RUN pip install \
     affine==2.* \
     attrs==25.* \
@@ -104,17 +91,8 @@ RUN pip install \
     xyzservices==2025.* \
     --break-system-packages
 
-# Instala LazyGit
-RUN sudo add-apt-repository ppa:lazygit-team/release -y && \
-    sudo apt-get update && sudo apt-get install -y lazygit
+# Define o diretório de trabalho padrão
+WORKDIR /home/devuser
 
-# Instala LazyDocker
-RUN curl https://raw.githubusercontent.com/jesseduffield/lazydocker/master/scripts/install.sh | bash
-
-# Ativa o bash completion e auto suggestions
-RUN echo "source /etc/bash_completion" >> ~/.zshrc
-
-# Configura terminal inicial
-RUN echo "cd ~/projects" >> ~/.zshrc
-
-CMD ["/usr/bin/zsh"]
+# Inicia o contêiner com bash
+CMD ["/bin/bash"]
