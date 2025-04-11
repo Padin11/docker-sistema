@@ -40,6 +40,11 @@ RUN curl -LO https://github.com/neovim/neovim/releases/download/v0.11.0/nvim-lin
     ln -s /nvim/AppRun /usr/local/bin/nvim && \
     rm nvim-linux-x86_64.appimage
 
+# Instala Rust (necessário para LunarVim)
+RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
+    echo 'export PATH="/root/.cargo/bin:$PATH"' >> /root/.bashrc
+ENV PATH="/root/.cargo/bin:$PATH"
+
 # Instalação do LunarVim como root para evitar problemas com permissões
 RUN bash -c "$(curl -s https://raw.githubusercontent.com/LunarVim/LunarVim/master/utils/installer/install.sh)" -- --yes
 
