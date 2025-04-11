@@ -1,3 +1,5 @@
+FROM debian:latest
+
 # Atualiza os pacotes e instala ferramentas essenciais
 RUN apt-get update && apt-get install -y \
     sudo \
