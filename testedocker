@@ -30,7 +30,8 @@ RUN apt-get update && apt-get install -y \
     libsqlite3-dev \
     zlib1g-dev \
     tzdata \
-    fuse 
+    fuse \
+    links2
 # Instala Neovim v0.11.0 via AppImage
 RUN curl -LO https://github.com/neovim/neovim/releases/download/v0.11.0/nvim-linux-x86_64.appimage && \
     chmod u+x nvim-linux-x86_64.appimage && \
