@@ -12,8 +12,6 @@ RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
     python3-venv \
-    nodejs \
-    npm \
     ripgrep \
     fd-find \
     luarocks \
@@ -30,9 +28,14 @@ RUN apt-get update && apt-get install -y \
     libsqlite3-dev \
     zlib1g-dev \
     tzdata \
-    fuse
+    fuse \
+    ca-certificates \
+    lsb-release \
+    gnupg2
 
-# Instala Neovim v0.11.0 via AppImage
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs
+
 RUN curl -LO https://github.com/neovim/neovim/releases/download/v0.11.0/nvim-linux-x86_64.appimage && \
     chmod u+x nvim-linux-x86_64.appimage && \
     ./nvim-linux-x86_64.appimage --appimage-extract && \
@@ -40,23 +43,81 @@ RUN curl -LO https://github.com/neovim/neovim/releases/download/v0.11.0/nvim-lin
     ln -s /nvim/AppRun /usr/local/bin/nvim && \
     rm nvim-linux-x86_64.appimage
 
-# Instala Rust (necessário para LunarVim)
-RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
-    echo 'export PATH="/root/.cargo/bin:$PATH"' >> /root/.bashrc
-ENV PATH="/root/.cargo/bin:$PATH"
-
-# Instalação do LunarVim como root para evitar problemas com permissões
-RUN bash -c "$(curl -s https://raw.githubusercontent.com/LunarVim/LunarVim/master/utils/installer/install.sh)" -- --yes
-
-# Cria o usuário 'devuser' com diretório home e permissões sudo
 RUN useradd -m -s /bin/bash -G sudo devuser && \
     echo 'devuser ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/devuser
 
-# Troca para o usuário devuser
 USER devuser
+WORKDIR /home/devuser
 
-# Exporta o PATH do LunarVim para o usuário
-ENV PATH="/home/devuser/.local/bin:$PATH"
+# Configuração do ambiente
+ENV PATH="/home/devuser/.cargo/bin:/home/devuser/.local/bin:$PATH"
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+RUN bash -c "$(curl -s https://raw.githubusercontent.com/lunarvim/lunarvim/master/utils/installer/install.sh)" -y --install-dependencies
+
+RUN mkdir -p ~/.config/lvim && \
+    touch ~/.config/lvim/config.lua
+
+# Adiciona configurações personalizadas ao config.lua
+COPY <<-'EOF' /home/devuser/.config/lvim/config.lua
+-- Desativa completamente o vim-illuminate
+lvim.builtin.illuminate.active = false
+
+-- Configurações básicas
+vim.opt.relativenumber = true
+vim.opt.cursorline = true
+vim.opt.expandtab = true
+vim.opt.tabstop = 4
+vim.opt.shiftwidth = 4
+vim.opt.clipboard = "unnamedplus"
+
+-- Keymaps
+lvim.leader = "space"
+lvim.keys.normal_mode["<Leader>s"] = ":w<CR>"
+lvim.keys.normal_mode["<Leader>q"] = ":bdelete<CR>"
+lvim.keys.normal_mode["<S-l>"] = ":bnext<CR>"
+lvim.keys.normal_mode["<S-h>"] = ":bprevious<CR>"
+lvim.keys.insert_mode["jj"] = "<ESC>"
+
+-- Plugins extras
+lvim.plugins = {
+  { "nvim-treesitter/nvim-treesitter", 
+    tag = "v0.9.2",
+    build = ":TSUpdate",
+    config = function()
+      require("nvim-treesitter.configs").setup({
+        highlight = { enable = true },
+        additional_vim_regex_highlighting = false,  -- Importante para evitar conflitos
+        ensure_installed = { "python", "lua", "rust", "go", "javascript", "typescript" }
+      })
+    end
+  },
+  { "folke/tokyonight.nvim" },
+  { "nvim-lualine/lualine.nvim" },
+  { "nvim-tree/nvim-tree.lua" },
+  { "windwp/nvim-autopairs" },
+  { "numToStr/Comment.nvim" },
+  { "lewis6991/gitsigns.nvim" },
+}
+
+-- LSP
+lvim.lsp.installer.setup.automatic_installation = true
+local lsp_servers = { "pyright", "tsserver", "rust_analyzer", "gopls", "lua_ls" }
+for _, lsp in ipairs(lsp_servers) do
+  require("lspconfig")[lsp].setup {}
+end
+
+-- Tema
+lvim.colorscheme = "tokyonight-night"
+require("tokyonight").setup({ style = "night" })
+
+-- Formatação automática
+lvim.format_on_save = true
+EOF
+
+RUN rm -rf ~/.local/share/lunarvim/site/pack/lazy/opt/vim-illuminate && \
+    nvim --headless "+LvimCacheReset" +qa
 
 # Instala os pacotes Python geoespaciais/científicos
 RUN pip install \
@@ -98,8 +159,6 @@ RUN pip install \
     xyzservices==2025.* \
     --break-system-packages
 
-# Define o diretório de trabalho padrão
-WORKDIR /home/devuser
+RUN mkdir -p ~/projetos ~/.config/lvim
 
-# Inicia o contêiner com bash
 CMD ["/bin/bash"]
